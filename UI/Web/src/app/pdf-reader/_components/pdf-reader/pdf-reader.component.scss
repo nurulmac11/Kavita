@@ -15,6 +15,12 @@
     margin: 0.1875rem 0 0.25rem !important;
 }
 
+// Invert the rendered pages only (not the toolbar). hue-rotate keeps colours in
+// images/diagrams roughly natural after the inversion.
+::ng-deep .invert-pages > ngx-extended-pdf-viewer .pdfViewer .page .canvasWrapper canvas {
+    filter: invert(1) hue-rotate(180deg);
+}
+
 ::ng-deep .dark > ngx-extended-pdf-viewer .treeItem>a {
     color: lightblue !important;
 }

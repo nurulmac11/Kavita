@@ -127,6 +127,12 @@ export class PdfReaderComponent implements OnInit, OnDestroy {
   fontColor: string = this.themeMap[this.theme].font;
 
   /**
+   * Invert the rendered PDF pages (white text on black). Remembered per device.
+   */
+  invertPages: boolean = PdfReaderComponent.loadInvertPages();
+  private static readonly invertPagesKey = 'kavita--pdf-reader--invert-pages';
+
+  /**
    * True if Preferences.DataSaver is true
    */
   disableLoadingIndicator = computed(() => this.accountService.userPreferences()?.dataSaver);
@@ -350,6 +356,24 @@ export class PdfReaderComponent implements OnInit, OnDestroy {
     window.history.replaceState({}, '', newRoute);
     this.toastr.info(translate('toasts.incognito-off'));
     this.saveProgress();
+    this.cdRef.markForCheck();
+  }
+
+  private static loadInvertPages(): boolean {
+    try {
+      return localStorage.getItem(PdfReaderComponent.invertPagesKey) === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  toggleInvertPages() {
+    this.invertPages = !this.invertPages;
+    try {
+      localStorage.setItem(PdfReaderComponent.invertPagesKey, String(this.invertPages));
+    } catch {
+      // Storage can be unavailable (private mode); the toggle still works for this session.
+    }
     this.cdRef.markForCheck();
   }
 

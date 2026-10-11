@@ -3309,6 +3309,8 @@
         "incognito-mode": "Incognito Mode",
         "light-theme-alt": "Light Theme",
         "dark-theme-alt": "Dark Theme",
+        "invert-pages-on-alt": "Invert pages (white text on black)",
+        "invert-pages-off-alt": "Show original page colours",
         "close-reader-alt": "Close Reader",
         "toggle-incognito": "Turn off Incognito Mode",
         "shortcuts-menu-alt": "{{manga-reader.shortcuts-menu-alt}}"

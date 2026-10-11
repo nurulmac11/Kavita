@@ -1,0 +1,13 @@
+# Overlays a locally built web UI (UI/Web/dist/browser) onto an official Kavita image.
+# Used for UI-only fork changes (e.g. the PDF "Invert pages" toggle) so the server
+# binaries stay exactly the upstream release.
+#
+#   cd UI/Web && npm ci --legacy-peer-deps && npm run prod
+#   docker build -f Dockerfile.ui-overlay -t kavita-invert:<tag> .
+#
+# BASE must be the upstream image the UI was built for (same commit), pinned by digest.
+ARG BASE=jvmilazz0/kavita@sha256:31181a32f0dda73cae68721867028a7253d57881b58bea5754cd9e578e75421a
+FROM ${BASE}
+
+RUN rm -rf /kavita/wwwroot
+COPY UI/Web/dist/browser /kavita/wwwroot

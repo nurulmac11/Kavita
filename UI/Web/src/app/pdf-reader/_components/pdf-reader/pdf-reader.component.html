@@ -1,7 +1,7 @@
 <ng-container *transloco="let t; prefix: 'pdf-reader'">
   @let user = accountService.currentUser();
   @if (user) {
-    <div class="{{theme}}" #container>
+    <div class="{{theme}}" [class.invert-pages]="invertPages" #container>
 
       @if (isLoading && !disableLoadingIndicator()) {
         <div class="loading-message-container">
@@ -143,6 +143,13 @@
 
 
 
+
+            <button (click)="toggleInvertPages()" class="btn-icon mt-0 mb-0 pt-1 pb-0 toolbarButton toolbar-btn-fix"
+                    [ngbTooltip]="invertPages ? t('invert-pages-off-alt') : t('invert-pages-on-alt')"
+                    [attr.aria-pressed]="invertPages">
+              <i class="toolbar-icon fa-solid fa-circle-half-stroke" [ngStyle]="{color: fontColor}" aria-hidden="true"></i>
+              <span class="visually-hidden">{{invertPages ? t('invert-pages-off-alt') : t('invert-pages-on-alt')}}</span>
+            </button>
 
             <!-- This is pretty experimental, so it might not work perfectly -->
             <button (click)="toggleTheme()" class="btn-icon mt-0 mb-0 pt-1 pb-0 toolbarButton toolbar-btn-fix">
