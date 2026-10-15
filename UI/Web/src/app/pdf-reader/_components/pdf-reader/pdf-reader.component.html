@@ -1,7 +1,8 @@
 <ng-container *transloco="let t; prefix: 'pdf-reader'">
   @let user = accountService.currentUser();
   @if (user) {
-    <div class="{{theme}}" [class.invert-pages]="invertPages" #container>
+    <div class="{{theme}}" [class.invert-pages]="invertPages" #container
+         (touchstart)="onTouch($event)" (touchmove)="onTouch($event)">
 
       @if (isLoading && !disableLoadingIndicator()) {
         <div class="loading-message-container">
@@ -43,14 +44,15 @@
         (pdfLoaded)="updateLoading(false)"
         (progress)="updateLoadProgress($event)"
         (zoomChange)="calcScrollbarNeeded()"
+        (currentZoomFactor)="onZoomFactor($event)"
         (handToolChange)="updateHandTool($event)"
         (findbarVisibleChange)="updateSearchOpen($event)"
        />
 
       @if (scrollMode === ScrollModeType.page && !isLoading) {
-        @if (!isSearchOpen) {
-          <div class="left" (click)="prevPage()"></div>
-          <div class="{{scrollbarNeeded ? 'right-with-scrollbar' : 'right'}}" (click)="nextPage()"></div>
+        @if (!isSearchOpen && !isZoomedIn) {
+          <div class="left" (click)="tapPrevPage()"></div>
+          <div class="{{scrollbarNeeded ? 'right-with-scrollbar' : 'right'}}" (click)="tapNextPage()"></div>
         }
       }
 

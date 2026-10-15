@@ -140,6 +140,14 @@ export class PdfReaderComponent implements OnInit, OnDestroy {
   private readonly preventGesture = (e: Event) => e.preventDefault();
 
   /**
+   * Tap-to-paginate guards: lifting fingers after a pinch registers as a tap on the edge
+   * zones, and while zoomed in the edges should pan rather than turn pages.
+   */
+  private lastMultiTouchAt = 0;
+  private fitZoomFactor: number | null = null;
+  isZoomedIn = false;
+
+  /**
    * True if Preferences.DataSaver is true
    */
   disableLoadingIndicator = computed(() => this.accountService.userPreferences()?.dataSaver);
@@ -488,6 +496,36 @@ export class PdfReaderComponent implements OnInit, OnDestroy {
   updateSearchOpen(event: boolean) {
      this.isSearchOpen = event;
      this.cdRef.markForCheck();
+  }
+
+  onTouch(event: TouchEvent) {
+    if (event.touches.length > 1) this.lastMultiTouchAt = Date.now();
+  }
+
+  onZoomFactor(factor: number) {
+    // Named zoom modes ('auto', 'page-fit', …) define the "not zoomed" baseline.
+    if (typeof this.zoomSetting === 'string' || this.fitZoomFactor === null) {
+      this.fitZoomFactor = factor;
+    }
+    const zoomed = factor > (this.fitZoomFactor ?? factor) * 1.05;
+    if (zoomed !== this.isZoomedIn) {
+      this.isZoomedIn = zoomed;
+      this.cdRef.markForCheck();
+    }
+  }
+
+  private recentlyPinched() {
+    return Date.now() - this.lastMultiTouchAt < 700;
+  }
+
+  tapPrevPage() {
+    if (this.isZoomedIn || this.recentlyPinched()) return;
+    this.prevPage();
+  }
+
+  tapNextPage() {
+    if (this.isZoomedIn || this.recentlyPinched()) return;
+    this.nextPage();
   }
 
   prevPage() {
