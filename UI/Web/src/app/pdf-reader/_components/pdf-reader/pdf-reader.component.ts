@@ -133,6 +133,13 @@ export class PdfReaderComponent implements OnInit, OnDestroy {
   private static readonly invertPagesKey = 'kavita--pdf-reader--invert-pages';
 
   /**
+   * While the reader is open, pinch gestures zoom the PDF (pdf.js handles them) instead of the
+   * whole page, so the toolbar stays in place. Original viewport is restored on destroy.
+   */
+  private originalViewport: string | null = null;
+  private readonly preventGesture = (e: Event) => e.preventDefault();
+
+  /**
    * True if Preferences.DataSaver is true
    */
   disableLoadingIndicator = computed(() => this.accountService.userPreferences()?.dataSaver);
@@ -196,7 +203,28 @@ export class PdfReaderComponent implements OnInit, OnDestroy {
     this.calcScrollbarNeeded();
   }
 
+  private lockBrowserZoom() {
+    const meta = this.document.querySelector('meta[name="viewport"]');
+    if (meta) {
+      this.originalViewport = meta.getAttribute('content');
+      meta.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
+    }
+    // iOS Safari ignores user-scalable=no; its own pinch gesture has to be cancelled instead.
+    this.document.addEventListener('gesturestart', this.preventGesture, { passive: false });
+    this.document.addEventListener('gesturechange', this.preventGesture, { passive: false });
+  }
+
+  private unlockBrowserZoom() {
+    const meta = this.document.querySelector('meta[name="viewport"]');
+    if (meta && this.originalViewport !== null) {
+      meta.setAttribute('content', this.originalViewport);
+    }
+    this.document.removeEventListener('gesturestart', this.preventGesture);
+    this.document.removeEventListener('gesturechange', this.preventGesture);
+  }
+
   ngOnDestroy(): void {
+    this.unlockBrowserZoom();
     this.themeService.currentTheme$.pipe(take(1)).subscribe(theme => {
       this.themeService.setTheme(theme.name);
     });
@@ -209,6 +237,7 @@ export class PdfReaderComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.lockBrowserZoom();
     const libraryId = this.route.snapshot.paramMap.get('libraryId');
     const seriesId = this.route.snapshot.paramMap.get('seriesId');
     const chapterId = this.route.snapshot.paramMap.get('chapterId');

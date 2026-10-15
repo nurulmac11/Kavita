@@ -21,6 +21,12 @@
     filter: invert(1) hue-rotate(180deg);
 }
 
+// Let pdf.js own pinch-zoom on touch devices: the browser may pan here but not zoom,
+// so pinching scales the PDF pages and the toolbar stays put.
+::ng-deep ngx-extended-pdf-viewer #viewerContainer {
+    touch-action: pan-x pan-y;
+}
+
 ::ng-deep .dark > ngx-extended-pdf-viewer .treeItem>a {
     color: lightblue !important;
 }
