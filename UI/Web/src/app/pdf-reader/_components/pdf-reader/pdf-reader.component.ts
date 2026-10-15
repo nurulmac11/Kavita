@@ -16,6 +16,7 @@ import {ActivatedRoute, Router} from '@angular/router';
 import {
   NgxExtendedPdfViewerModule,
   NgxExtendedPdfViewerService,
+  PageRenderedEvent,
   PageViewModeType,
   pdfDefaultOptions,
   ProgressBarEvent,
@@ -122,7 +123,8 @@ export class PdfReaderComponent implements OnInit, OnDestroy {
 
   theme: 'dark' | 'light' = 'light';
   themeMap: {[key:string]: {background: string, font: string}} = {
-    'dark': {'background': '#292929', 'font': '#d9d9d9'},
+    // Pure black around the pages (the page itself keeps its own colours).
+    'dark': {'background': '#000000', 'font': '#d9d9d9'},
     'light': {'background': '#f9f9f9', 'font': '#5a5a5a'}
   }
   backgroundColor: string = this.themeMap[this.theme].background;
@@ -133,6 +135,14 @@ export class PdfReaderComponent implements OnInit, OnDestroy {
    */
   invertPages: boolean = PdfReaderComponent.loadInvertPages();
   private static readonly invertPagesKey = 'kavita--pdf-reader--invert-pages';
+
+  /**
+   * Black margins: paint each page's empty margins black, keeping only the detected
+   * content box (text/images + padding) visible. Remembered per device.
+   */
+  blackMargins: boolean = PdfReaderComponent.loadFlag('kavita--pdf-reader--black-margins');
+  /** Content box per page number as fractions of the page (top, right, bottom, left insets). */
+  private readonly contentInsets = new Map<number, [number, number, number, number]>();
 
   /**
    * While the reader is open, pinch gestures zoom the PDF (pdf.js handles them) instead of the
@@ -396,6 +406,107 @@ export class PdfReaderComponent implements OnInit, OnDestroy {
     this.toastr.info(translate('toasts.incognito-off'));
     this.saveProgress();
     this.cdRef.markForCheck();
+  }
+
+  private static loadFlag(key: string): boolean {
+    try {
+      return localStorage.getItem(key) === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  toggleBlackMargins() {
+    this.blackMargins = !this.blackMargins;
+    try {
+      localStorage.setItem('kavita--pdf-reader--black-margins', String(this.blackMargins));
+    } catch {
+      // Storage can be unavailable (private mode); the toggle still works for this session.
+    }
+    const root = this.container()?.nativeElement as HTMLElement | undefined;
+    const pages = root?.querySelectorAll<HTMLDivElement>('.pdfViewer .page') ?? [];
+    pages.forEach((page: HTMLDivElement) => {
+      const pageNumber = Number(page.dataset['pageNumber']);
+      if (this.blackMargins) {
+        this.applyBlackMargins(page, pageNumber);
+      } else {
+        this.clearBlackMargins(page);
+      }
+    });
+    this.cdRef.markForCheck();
+  }
+
+  onPageRendered(event: PageRenderedEvent) {
+    if (!this.blackMargins) return;
+    this.applyBlackMargins(event.source.div, event.pageNumber, event.source.canvas);
+  }
+
+  private applyBlackMargins(page: HTMLDivElement, pageNumber: number, canvas?: HTMLCanvasElement) {
+    const wrapper = page.querySelector<HTMLElement>('.canvasWrapper');
+    if (!wrapper) return;
+    let insets = this.contentInsets.get(pageNumber);
+    if (!insets) {
+      const source = canvas ?? wrapper.querySelector('canvas');
+      if (!source || !source.width) return;
+      const detected = PdfReaderComponent.detectContentInsets(source);
+      if (!detected) return;
+      insets = detected;
+      this.contentInsets.set(pageNumber, insets);
+    }
+    const [top, right, bottom, left] = insets.map(v => `${(v * 100).toFixed(2)}%`);
+    // Clip the wrapper (it holds both the page canvas and pdf.js' zoomed detail canvas);
+    // the black page background shows through outside the content box.
+    wrapper.style.clipPath = `inset(${top} ${right} ${bottom} ${left})`;
+    page.style.backgroundColor = '#000';
+  }
+
+  private clearBlackMargins(page: HTMLDivElement) {
+    const wrapper = page.querySelector<HTMLElement>('.canvasWrapper');
+    if (wrapper) wrapper.style.clipPath = '';
+    page.style.backgroundColor = '';
+  }
+
+  /**
+   * Finds the bounding box of "ink" (non-background pixels) on a downscaled copy of the page.
+   * Rows/columns need a few dark pixels to count, so stray specks don't widen the box.
+   */
+  private static detectContentInsets(canvas: HTMLCanvasElement): [number, number, number, number] | null {
+    const width = 300;
+    const height = Math.max(1, Math.round(canvas.height * width / canvas.width));
+    const probe = document.createElement('canvas');
+    probe.width = width;
+    probe.height = height;
+    const ctx = probe.getContext('2d', {willReadFrequently: true});
+    if (!ctx) return null;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(canvas, 0, 0, width, height);
+    const data = ctx.getImageData(0, 0, width, height).data;
+
+    const rows = new Uint16Array(height);
+    const cols = new Uint16Array(width);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        if (Math.min(data[i], data[i + 1], data[i + 2]) < 200) {
+          rows[y]++;
+          cols[x]++;
+        }
+      }
+    }
+    const minRow = 2, minCol = 2;
+    let top = rows.findIndex(n => n >= minRow);
+    if (top < 0) return null; // blank page: leave it alone
+    let bottom = height - 1 - [...rows].reverse().findIndex(n => n >= minRow);
+    let left = cols.findIndex(n => n >= minCol);
+    let right = width - 1 - [...cols].reverse().findIndex(n => n >= minCol);
+
+    const padX = Math.round(width * 0.02), padY = Math.round(height * 0.015);
+    top = Math.max(0, top - padY);
+    bottom = Math.min(height - 1, bottom + padY);
+    left = Math.max(0, left - padX);
+    right = Math.min(width - 1, right + padX);
+    return [top / height, (width - 1 - right) / width, (height - 1 - bottom) / height, left / width];
   }
 
   private static loadInvertPages(): boolean {
