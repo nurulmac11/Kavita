@@ -15,6 +15,7 @@ import {
 import {ActivatedRoute, Router} from '@angular/router';
 import {
   NgxExtendedPdfViewerModule,
+  NgxExtendedPdfViewerService,
   PageViewModeType,
   pdfDefaultOptions,
   ProgressBarEvent,
@@ -77,6 +78,7 @@ export class PdfReaderComponent implements OnInit, OnDestroy {
   public readonly destroyRef = inject(DestroyRef);
   public readonly document = inject(DOCUMENT);
   private readonly keyBindService = inject(KeyBindService);
+  private readonly pdfViewerService = inject(NgxExtendedPdfViewerService);
   protected readonly breakpointService = inject(BreakpointService);
 
   protected readonly ScrollModeType = ScrollModeType;
@@ -496,6 +498,38 @@ export class PdfReaderComponent implements OnInit, OnDestroy {
   updateSearchOpen(event: boolean) {
      this.isSearchOpen = event;
      this.cdRef.markForCheck();
+  }
+
+  /**
+   * Hands the open PDF to the device: opens the share sheet where the browser allows it
+   * (secure contexts), otherwise downloads the file so it can be shared from Files/Downloads.
+   */
+  async sharePdf() {
+    const blob = await this.pdfViewerService.getCurrentDocumentAsBlob();
+    if (!blob) {
+      this.toastr.error(translate('pdf-reader.share-failed'));
+      return;
+    }
+    const safeTitle = (this.bookTitle || 'book').replace(/[\\/:*?"<>|]+/g, ' ').trim();
+    const file = new File([blob], `${safeTitle}.pdf`, {type: 'application/pdf'});
+
+    if (navigator.canShare?.({files: [file]})) {
+      try {
+        await navigator.share({files: [file], title: this.bookTitle});
+        return;
+      } catch (e) {
+        if ((e as DOMException)?.name === 'AbortError') return; // user closed the share sheet
+      }
+    }
+
+    const url = URL.createObjectURL(file);
+    const link = this.document.createElement('a');
+    link.href = url;
+    link.download = file.name;
+    this.document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
 
   onTouch(event: TouchEvent) {
